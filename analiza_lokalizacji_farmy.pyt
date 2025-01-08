@@ -33,9 +33,9 @@ class Tool(object):
         )
 
         output_folder = arcpy.Parameter(
-            displayName="Folder wyjściowy/Geobaza",
+            displayName="Folder wyjściowy",
             name="output_folder",
-            datatype="DEWorkspace",
+            datatype="DEFolder",
             parameterType="Required",
             direction="Input"
         )
@@ -104,22 +104,6 @@ class Tool(object):
             direction="Input"
         )
 
-        linie_energ = arcpy.Parameter(
-            displayName="Warstwa linii energetycznych",
-            name="linie_energ",
-            datatype="GPFeatureLayer",
-            parameterType="Optional",
-            direction="Input"
-        )
-
-        pokrycie = arcpy.Parameter(
-            displayName="Warstwa pokrycia terenu",
-            name="pokrycie",
-            datatype="GPFeatureLayer",
-            parameterType="Optional",
-            direction="Input"
-        )
-
         dzialki = arcpy.Parameter(
             displayName="Warstwa działek",
             name="dzialki",
@@ -136,7 +120,35 @@ class Tool(object):
             direction="Input"
         )
 
-        params = [workspace, output_folder, warstwa_gminy, bufor_gminy, warstwa_nmt, drogi, rzeki, jeziora, lasy, budynki, linie_energ, pokrycie, dzialki, raster_wezlow]
+        tworzyc_mape_kosztow = arcpy.Parameter(
+            displayName="Czy tworzyć mapę kosztów?",
+            name="tworzyc_mape_kosztow",
+            datatype="GPBoolean",
+            parameterType="Required",
+            direction="Input"
+        )
+        tworzyc_mape_kosztow.value = False
+
+        linie_energ = arcpy.Parameter(
+            displayName="Warstwa linii energetycznych",
+            name="linie_energ",
+            datatype="GPFeatureLayer",
+            parameterType="Optional",
+            direction="Input"
+        )
+        linie_energ.enabled = False
+
+        pokrycie = arcpy.Parameter(
+            displayName="Warstwa pokrycia terenu",
+            name="pokrycie",
+            datatype="GPFeatureLayer",
+            parameterType="Optional",
+            direction="Input"
+        )
+        pokrycie.enabled = False
+
+        params = [workspace, output_folder, warstwa_gminy, bufor_gminy, warstwa_nmt, drogi, rzeki, jeziora, lasy, budynki, dzialki, raster_wezlow]
+        params.extend([tworzyc_mape_kosztow, linie_energ, pokrycie])
         return params
 
     def isLicensed(self):
@@ -147,6 +159,9 @@ class Tool(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
+        tworzyc_mape_kosztow = parameters[12].value
+        parameters[13].enabled = tworzyc_mape_kosztow
+        parameters[14].enabled = tworzyc_mape_kosztow
         return
 
     def updateMessages(self, parameters):
@@ -172,7 +187,8 @@ class Tool(object):
             "warstwy_wejsciowe",
             "kryteria",
             "przydatnosc_dzialek",
-            "dzialki_pod_inwestycje"
+            "dzialki_pod_inwestycje",
+            "mapy_kosztow"
         ]
 
         for folder in folders_to_create:
@@ -186,6 +202,7 @@ class Tool(object):
 
         warstwa_nmt = parameters[4].value
         extent = arcpy.Describe(bufor_gminy).extent
+        cellsize = 5
 
         workspace = parameters[0].valueAsText
         arcpy.env.workspace = workspace
@@ -193,7 +210,7 @@ class Tool(object):
         arcpy.env.overwriteOutput = True
         arcpy.env.extent = extent
         arcpy.env.mask = bufor_gminy_path
-        arcpy.env.cellSize =  5
+        arcpy.env.cellSize =  cellsize
 
         aprx = arcpy.mp.ArcGISProject("CURRENT") 
         m = aprx.activeMap
@@ -205,20 +222,20 @@ class Tool(object):
         jeziora = parameters[7].value
         lasy = parameters[8].value
         budynki_wszystkie = parameters[9].value
-        linie_energ = parameters[10].value
-        pokrycie = parameters[11].value
-        dzialki = parameters[12].value
-        raster_wezlow = parameters[13].value
+        dzialki = parameters[10].value
+        raster_wezlow = parameters[11].value
         gmina = parameters[2].value
 
-    
+        tworzyc_mape_kosztow = parameters[12].value
+
+        
         # Wyselekcjonowanie drog utwardzonych
         drogi_layer = arcpy.management.MakeFeatureLayer(drogi_wszystkie, "drogi_layer").getOutput(0)
 
         drogi = arcpy.management.SelectLayerByAttribute(drogi_layer, "NEW_SELECTION", "MATE_NAWIE IN ('beton','bruk', 'kostka kamienna', 'kostka prefabrykowana', 'masa bitumiczna', 'płyty betonowe')", None)
 
         arcpy.management.CopyFeatures(drogi, fr"{output_folder}\warstwy_wejsciowe\drogi_selected", '', None, None, None)
-        drogi_selected = 'drogi_selected'
+        drogi_selected = fr"{output_folder}\warstwy_wejsciowe\drogi_selected"
         arcpy.SelectLayerByAttribute_management(drogi, "CLEAR_SELECTION")
 
         # Wyselekcjonowanie budynkow mieszkalnych
@@ -226,7 +243,7 @@ class Tool(object):
 
         budynki = arcpy.management.SelectLayerByAttribute(budynki_layer, "NEW_SELECTION", "FOBUD IN ('budynki mieszkalne')", None)
         arcpy.management.CopyFeatures(budynki, fr"{output_folder}\warstwy_wejsciowe\budynki_selected", '', None, None, None)
-        budynki_selected = 'budynki_selected'
+        budynki_selected = fr"{output_folder}\warstwy_wejsciowe\budynki_selected"
         arcpy.SelectLayerByAttribute_management(budynki, "CLEAR_SELECTION")
 
         # Utworzenie map odległości
@@ -234,11 +251,11 @@ class Tool(object):
         jeziora = arcpy.management.CopyFeatures(jeziora, fr"{output_folder}\warstwy_wejsciowe\jeziora", '', None, None, None)
         lasy = arcpy.management.CopyFeatures(lasy, fr"{output_folder}\warstwy_wejsciowe\lasy", '', None, None, None)
 
-        distance_rzeki = arcpy.sa.EucDistance(rzeki, None, "5")
-        distance_jeziora = arcpy.sa.EucDistance(jeziora, None, "5")
-        distance_drogi = arcpy.sa.EucDistance(drogi_selected, None, "5")
-        distance_budynki = arcpy.sa.EucDistance(budynki_selected, None, "5")
-        distance_lasy = arcpy.sa.EucDistance(lasy, None, "5")
+        distance_rzeki = arcpy.sa.EucDistance(rzeki, None, cellsize)
+        distance_jeziora = arcpy.sa.EucDistance(jeziora, None, cellsize)
+        # distance_drogi = arcpy.sa.EucDistance(drogi_selected, None, cellsize)
+        distance_budynki = arcpy.sa.EucDistance(budynki_selected, None, cellsize)
+        distance_lasy = arcpy.sa.EucDistance(lasy, None, cellsize)
         distance_wezly = raster_wezlow
 
         arcpy.AddMessage("Utworzono mapy odległości")
@@ -257,12 +274,19 @@ class Tool(object):
 
         kryterium_wody = arcpy.sa.FuzzyOverlay([wody_ostre, wody_rozmyte], 'AND')
         kryterium_wody.save(f"{output_folder}\kryteria\kryterium_wody.tif")
+        # ------------------------- KRYTERIUM 2 - budynki  -----------------------------------
+        kryterium_budynki = arcpy.sa.FuzzyMembership(distance_budynki,  arcpy.sa.FuzzyLinear(150, 400))
+        kryterium_budynki.save(f"{output_folder}\kryteria\kryterium_budynki.tif")
 
-        # ------------------------- KRYTERIUM 2 - drogi  -------------------------------------
+        # ------------------------- KRYTERIUM 3 - lasy  --------------------------------------
+        kryterium_lasy = arcpy.sa.FuzzyMembership(distance_lasy, arcpy.sa.FuzzyLinear(15, 100))
+        kryterium_lasy.save(f"{output_folder}\kryteria\kryterium_lasy.tif")
+
+        # ------------------------- KRYTERIUM 4 - drogi  -------------------------------------
         raster_zageszczenia = arcpy.sa.LineDensity(
             in_polyline_features=drogi_selected,
             population_field="NONE",
-            cell_size=5,
+            cell_size=cellsize,
             search_radius=1000,
             area_unit_scale_factor="SQUARE_METERS"
         )
@@ -276,14 +300,6 @@ class Tool(object):
         )
 
         kryterium_drogi.save(f"{output_folder}\kryteria\kryterium_drogi.tif")
-
-        # ------------------------- KRYTERIUM 3 - budynki  -----------------------------------
-        kryterium_budynki = arcpy.sa.FuzzyMembership(distance_budynki,  arcpy.sa.FuzzyLinear(150, 500))
-        kryterium_budynki.save(f"{output_folder}\kryteria\kryterium_budynki.tif")
-
-        # ------------------------- KRYTERIUM 4 - lasy  --------------------------------------
-        kryterium_lasy = arcpy.sa.FuzzyMembership(distance_lasy, arcpy.sa.FuzzyLinear(15, 100))
-        kryterium_lasy.save(f"{output_folder}\kryteria\kryterium_lasy.tif")
 
         # ------------------------- KRYTERIUM 5 - nachylenie stoków  --------------------------
         spadki_output = f"{workspace}\spadki"
@@ -552,8 +568,86 @@ class Tool(object):
         m.addDataFromPath(f"{output_folder}\dzialki_pod_inwestycje\dzialki_rowne.shp")
         m.addDataFromPath(f"{output_folder}\dzialki_pod_inwestycje\dzialki_rozne.shp")
 
-        arcpy.AddMessage("Zakończono analizę lokalizacji farmy fotowoltaicznej")
+        # ----------------------------- TWORZENIE MAPY KOSZTOW -------------------------------- 
+        if tworzyc_mape_kosztow:
+            linie_energ = parameters[13].value
+            pokrycie = parameters[14].value
+            pokrycie = arcpy.management.MakeFeatureLayer(pokrycie, "pokrycie").getOutput(0)
 
+            # Wyselekcjonowanie linii energetycznych średniego napięcia
+            # linie_energ_layer = arcpy.management.MakeFeatureLayer(linie_energ, "linie_energ_layer").getOutput(0)
+            # linie_energ = arcpy.management.SelectLayerByAttribute(linie_energ_layer, "NEW_SELECTION", "rodzaj = 'linia elektroenergetyczna średniego napięcia'", None)
+            # arcpy.management.CopyFeatures(linie_energ, fr"{output_folder}\warstwy_wejsciowe\linie_energ_selected", '', None, None, None)
+            # linie_energ_selected = fr"{output_folder}\warstwy_wejsciowe\linie_energ_selected"
+            # arcpy.SelectLayerByAttribute_management(linie_energ, "CLEAR_SELECTION")
+
+            raster_pokrycia = arcpy.conversion.FeatureToRaster(
+                in_features= pokrycie,
+                field="X_KOD",
+                out_raster=f"raster_pokrycia",
+                cell_size=5
+            )
+
+            # Reklasyfikacja w celu przypisania kosztów dla różnych wartości X_KOD (mapa kosztów względnych)
+            raster_kosztow = arcpy.ddd.Reclassify(
+                in_raster=raster_pokrycia,
+                reclass_field="X_KOD",
+                remap="PTZB01 200;PTZB02 100;PTZB05 50;PTZB03 200;PTZB04 200;PTWZ01 NODATA;PTWP02 200;PTWP03 NODATA;PTUT03 100;PTUT01 NODATA;PTTR02 1;PTTR01 20;PTPL01 50;PTNZ01 150;PTNZ02 150;PTLZ01 100;PTLZ03 50;PTLZ02 50;PTKM01 100;PTWP01 NODATA;PTRK01 15;PTRK02 15;PTUT02 90;PTUT04 20;PTUT05 20;PTKM02 200;PTKM03 200;PTKM04 NODATA;PTGN01 1;PTGN02 1;PTGN03 1;PTGN04 1;PTSO01 NODATA;PTSO02 NODATA;PTWZ02 NODATA",
+                out_raster="raster_kosztow",
+                missing_values="NODATA"
+            )
+            
+
+            def utworz_sciezki_przylacza(dzialki, dzialki_str):
+                with arcpy.da.SearchCursor(dzialki,['SHAPE@', 'FID']) as cursor:
+                    for row in cursor:
+                        geometry = row[0]
+                        object_id = row[1]
+
+                        warstwa = f"in_memory\\dzialka{object_id}_{dzialki_str}"
+                        arcpy.management.CopyFeatures([geometry], warstwa)
+
+                        sciezka_wyjsciowa = (f"{output_folder}\mapy_kosztow\dzialka_{object_id}_{dzialki_str}")
+                        dzialka = arcpy.management.CopyFeatures(warstwa, sciezka_wyjsciowa)
+
+                        # Utworzenie mapy kosztów skumulowanych i mapy kierunków
+                        mapa_kosztow = arcpy.sa.CostDistance(
+                            in_source_data=dzialka,
+                            in_cost_raster=raster_kosztow,
+                            out_backlink_raster=f"{workspace}\mki_{object_id}_{dzialki_str}"
+                        )
+                        mapa_kosztow.save(f"{workspace}\mko_{object_id}_{dzialki_str}")
+                        mapa_kierunkow = f"{workspace}\mki_{object_id}_{dzialki_str}"
+
+                        # Utworzenie ścieżki przyłącza od działek do istniejących linii energetycznych
+                        out_raster = arcpy.sa.CostPath(
+                            in_destination_data=linie_energ,
+                            in_cost_distance_raster=mapa_kosztow,
+                            in_cost_backlink_raster=mapa_kierunkow,
+                            path_type="BEST_SINGLE",
+                            destination_field="FID",
+                            force_flow_direction_convention="INPUT_RANGE"
+                        )
+                        out_raster.save(f"{workspace}\path_{object_id}_{dzialki_str}")
+                        
+                        arcpy.conversion.RasterToPolyline(
+                            in_raster=out_raster,
+                            out_polyline_features=f"{workspace}\sciezka_przylacza_{object_id}_{dzialki_str}",
+                            background_value="ZERO",
+                            minimum_dangle_length=0,
+                            simplify="SIMPLIFY",
+                            raster_field="Value"
+                        )
+                        m.addDataFromPath(f"{workspace}\sciezka_przylacza_{object_id}_{dzialki_str}")
+
+                        
+            utworz_sciezki_przylacza(dzialki_rowne, "rowne")
+            utworz_sciezki_przylacza(dzialki_rozne, "rozne")
+
+
+
+        arcpy.AddMessage("Zakończono analizę lokalizacji farmy fotowoltaicznej")
+        
 
         return
 
