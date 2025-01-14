@@ -29,7 +29,8 @@ class Tool(object):
             name="workspace",
             datatype="DEWorkspace",
             parameterType="Required",
-            direction="Input"
+            direction="Input",
+            
         )
 
         output_folder = arcpy.Parameter(
@@ -356,9 +357,9 @@ class Tool(object):
             [
                 [kryterium_budynki, "VALUE", 0.120244],
                 [kryterium_drogi, "VALUE", 0.051404],
-                [kryterium_lasy, "VALUE", 0.248666],
+                [kryterium_lasy, "VALUE", 0.163683],
                 [kryterium_spadki, "VALUE", 0.187234],
-                [kryterium_stoki, "VALUE", 0.163683],
+                [kryterium_stoki, "VALUE", 0.248666],
                 [kryterium_wody, "VALUE", 0.207279],
                 [kryterium_wezly, "VALUE", 0.021489],
             ]
