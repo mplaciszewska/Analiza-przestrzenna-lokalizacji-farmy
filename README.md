@@ -20,7 +20,7 @@ Projekt dotyczy wskazania optymalnej lokalizacji do wybudowania nowej farmy foto
 | 3  | Powierzchnia i min. szerokość obszaru | 2ha / 50m |
 | 4  | Koszt przyłącza do sieci SN (mapy kosztów) | jak najniższy |
 
-#### Uruchomienie
+### Uruchomienie
 - **analizaLokalizacjiFarmy.ipynb** - notebook możliwy do uruchomienia w środowisku ArcGiS, wykonuje analizę dla gminy Świeradów zdrój, możliwa jest zmiana parametrów w kodzie i uruchomienie dla dowolnej gminy
 - **analiza_lokalizacji_farmy.pyt** - Toolbox .pyt, po zaimportowaniu go do ArcGiSa należy podać odpowiednie parametry (wymagane do analizy warstwy z BDOT10k dla dowolnej gminy):
   ![image](https://github.com/user-attachments/assets/8c783faa-b8e5-4a77-94a3-14bfab1b7810)
